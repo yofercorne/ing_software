@@ -1,0 +1,42 @@
+1. Elija una técnica de performance testing. justifique, ejecute y agregue los resultados en forma de gráfico donde la dimención x es tiempo y Y es la latencia obtenida
+
+El objetivo del Performance Testing es evaluar y asegurar que el sistema pueda responder adecuadamente bajo condiciones específicas de carga, garantizando que los tiempos de respuesta cumplan con los requisitos establecidos y que la infraestructura sea capaz de manejar solicitudes concurrentes sin degradar el servicio.
+
+En este caso, evaluamos el endpoint /happy-path, ya que:
+Este endpoint permite establecer una línea base para medir la latencia sin influencias de lógica de negocio compleja.
+Ayuda a diagnosticar problemas fundamentales.
+Sirve como punto de comparación.
+Los resultados de este test se pueden usar como referencia al probar otros endpoints más complejos.
+
+Técnica Elegida: Load Testing
+
+Relevancia para el requisito:
+El enfoque principal es evaluar la latencia y comprobar si cumple con el objetivo de 1000ms bajo una carga manejable.
+Eficiencia:
+Simular una carga moderada (por ejemplo, 1-10 usuarios simultáneos) es suficiente para este caso, ya que el objetivo es medir la capacidad base de respuesta, no sus límites extremos.
+Simplicidad:
+Load Testing es fácil de implementar y se alinea perfectamente con la necesidad de evaluar un único endpoint.
+
+
+TEOREMA CAP
+
+Para esta API de gestión de tickets y conciertos, las prioridades son:
+
+Disponibilidad (A): La API debe responder rápidamente, incluso bajo alta carga o si hay fallos menores.
+Consistencia (C): Los datos, como la cantidad de tickets disponibles, deben ser precisos para evitar sobreventa.
+Dado que esta API no es crítica para tolerancia a particiones (P) debido a su naturaleza de servidor único o clusters pequeños controlados, priorizaremos:
+
+Consistencia (C): Garantizar que no haya conflictos en la base de datos.
+Disponibilidad (A): Asegurar que la API sea accesible para los usuarios.
+Por lo tanto, elegimos una combinación CA (Consistencia y Disponibilidad).
+
+
+Justificación de la elección: CA
+Consistencia:
+Es fundamental garantizar que los datos de tickets sean consistentes, ya que cualquier discrepancia podría resultar en errores graves, como sobreventa o venta duplicada.
+
+Disponibilidad:
+La API debe estar siempre disponible para que los usuarios puedan reservar o cancelar tickets sin interrupciones, especialmente en situaciones de alta demanda.
+
+Tolerancia a particiones (P):
+Aunque es deseable, este sistema no requiere alta tolerancia a particiones porque no opera en una arquitectura distribuida con múltiples nodos geográficamente separados. Si ocurriera una partición, se podría pausar temporalmente la disponibilidad para mantener la consistencia.
