@@ -14,13 +14,13 @@ async def create_user(user: UserCreate):
     try:
         db = get_db()  # Obtén la conexión dentro de la función
         user_data = user.dict()
-        result = await db.users.insert_one(user_data)
 
-        #valdite user existin
+        #valdite user existin user
         exiting_user=await db.users.find_one({"name":user.name })
         if exiting_user:
             raise HTTPException(status_code=400,detail="The user already existing in db")
 
+        result = await db.users.insert_one(user_data)
         user_data["id"] = str(result.inserted_id)
         return user_data
         #return 200 ok
@@ -29,7 +29,8 @@ async def create_user(user: UserCreate):
         raise http_exc
     except Exception as e:
         print(f"fail in the server {e}") #TODO guardar el log
-        raise HTTPException(status_code=500,detail="Error internal of server")
+
+        raise HTTPException(status_code=500,detail=f"Error internal of server {e}")
         #return 500
 
 @router.post("/movies/", response_model=MovieResponse)

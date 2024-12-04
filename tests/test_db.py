@@ -34,3 +34,4 @@ async def test_create_user(test_db):
     assert user is not None  # Verifica que el usuario existe en la base de datos
     assert user["name"] == "Kevin"  # Comprueba que el nombre del usuario es el esperado
     assert user["preferences"] == ["acción", "comedia"]  # Verifica que las preferencias coinciden
+
