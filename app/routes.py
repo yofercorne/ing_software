@@ -11,12 +11,9 @@ async def reserve_ticket(ticket: TicketCreate):
     Reserve an available ticket for a concert.
     """
     try:
-        db = get_db()
-
-        # Check if the concert exists
-        concert = await db.concerts.find_one({"_id": ObjectId(ticket.concert_id)})
-        if not concert:
-            raise HTTPException(status_code=404, detail="The associated concert does not exist.")
+        print("antes de llamar")
+        db = get_db()  # aqui falla el codigo
+        print("despies de llamar")
 
         # Check for available tickets
         available_ticket = await db.tickets.find_one({"concert_id": ticket.concert_id, "status": "available"})
