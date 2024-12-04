@@ -1,95 +1,113 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas import ConcertCreate, ConcertResponse, TicketCreate, TicketResponse
+from app.schemas import TicketCreate, TicketResponse
 from app.database import get_db
 from bson import ObjectId
 
 router = APIRouter()
 
-# Rutas para conciertos
-@router.post("/concerts/", response_model=ConcertResponse)
-async def create_concert(concert: ConcertCreate):
+@router.post("/tickets/reserve", response_model=TicketResponse)
+async def reserve_ticket(ticket: TicketCreate):
     """
-    Crea un concierto en la base de datos.
-    """
-    try:
-        db = get_db()
-        concert_data = concert.dict()
-
-        # Verificar si ya existe un concierto con el mismo nombre y fecha
-        existing_concert = await db.concerts.find_one({"name": concert.name, "date": concert.date})
-        if existing_concert:
-            raise HTTPException(status_code=400, detail="El concierto ya existe en la base de datos.")
-
-        result = await db.concerts.insert_one(concert_data)
-        concert_data["id"] = str(result.inserted_id)
-        return concert_data
-    except HTTPException as http_exc:
-        raise http_exc
-    except Exception as e:
-        print(f"Fallo en el servidor: {e}")  # TODO: Guardar en el log
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
-
-@router.get("/concerts/", response_model=list[ConcertResponse])
-async def get_concerts():
-    """
-    Devuelve una lista de conciertos disponibles.
+    Reserve an available ticket for a concert.
     """
     try:
         db = get_db()
-        concerts = db.concerts.find()
-        return [dict(concert, id=str(concert["_id"])) async for concert in concerts]
-    except Exception as e:
-        print(f"Fallo en el servidor: {e}")  # TODO: Guardar en el log
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-
-# Rutas para tickets
-@router.post("/tickets/", response_model=TicketResponse)
-async def create_ticket(ticket: TicketCreate):
-    """
-    Crea un ticket asociado a un concierto en la base de datos.
-    """
-    try:
-        db = get_db()
-        ticket_data = ticket.dict()
-
-        # Verificar si el concierto existe
+        # Check if the concert exists
         concert = await db.concerts.find_one({"_id": ObjectId(ticket.concert_id)})
         if not concert:
-            raise HTTPException(status_code=404, detail="El concierto asociado no existe.")
+            raise HTTPException(status_code=404, detail="The associated concert does not exist.")
 
-        # Insertar el ticket
-        result = await db.tickets.insert_one(ticket_data)
-        ticket_data["id"] = str(result.inserted_id)
-        return ticket_data
-    except HTTPException as http_exc:
-        raise http_exc
+        # Check for available tickets
+        available_ticket = await db.tickets.find_one({"concert_id": ticket.concert_id, "status": "available"})
+        if not available_ticket:
+            raise HTTPException(status_code=400, detail="No tickets available to reserve.")
+
+        # Update the ticket to "reserved" status
+        result = await db.tickets.update_one(
+            {"_id": available_ticket["_id"]},
+            {"$set": {"status": "reserved"}}
+        )
+
+        if result.modified_count == 1:
+            return {
+                "id": str(available_ticket["_id"]),
+                "concert_id": ticket.concert_id,
+                "status": "reserved"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="The ticket could not be reserved.")
     except Exception as e:
-        print(f"Fallo en el servidor: {e}")  # TODO: Guardar en el log
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        print(f"Server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.get("/tickets/{concert_id}", response_model=list[TicketResponse])
-async def get_tickets(concert_id: str):
+
+@router.post("/tickets/purchase", response_model=TicketResponse)
+async def purchase_ticket(ticket: TicketCreate):
     """
-    Devuelve una lista de tickets asociados a un concierto.
+    Purchase a reserved or available ticket for a concert.
     """
     try:
         db = get_db()
-        tickets = db.tickets.find({"concert_id": concert_id})
-        return [dict(ticket, id=str(ticket["_id"])) async for ticket in tickets]
-    except Exception as e:
-        print(f"Fallo en el servidor: {e}")  # TODO: Guardar en el log
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@router.get("/tickets/available/{concert_id}", response_model=int)
-async def get_available_tickets(concert_id: str):
+        # Check if the concert exists
+        concert = await db.concerts.find_one({"_id": ObjectId(ticket.concert_id)})
+        if not concert:
+            raise HTTPException(status_code=404, detail="The associated concert does not exist.")
+
+        # Check for reserved or available tickets
+        reserved_or_available_ticket = await db.tickets.find_one(
+            {"concert_id": ticket.concert_id, "status": {"$in": ["reserved", "available"]}}
+        )
+        if not reserved_or_available_ticket:
+            raise HTTPException(status_code=400, detail="No tickets available to purchase.")
+
+        # Update the ticket to "purchased" status
+        result = await db.tickets.update_one(
+            {"_id": reserved_or_available_ticket["_id"]},
+            {"$set": {"status": "purchased"}}
+        )
+
+        if result.modified_count == 1:
+            return {
+                "id": str(reserved_or_available_ticket["_id"]),
+                "concert_id": ticket.concert_id,
+                "status": "purchased"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="The ticket purchase could not be completed.")
+    except Exception as e:
+        print(f"Server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/tickets/cancel", response_model=TicketResponse)
+async def cancel_ticket(ticket_id: str):
     """
-    Devuelve el número de tickets disponibles para un concierto.
+    Cancel a reserved ticket and make it available again.
     """
     try:
         db = get_db()
-        count = await db.tickets.count_documents({"concert_id": concert_id, "status": "available"})
-        return count
+
+        # Check if the ticket exists and is reserved
+        ticket = await db.tickets.find_one({"_id": ObjectId(ticket_id), "status": "reserved"})
+        if not ticket:
+            raise HTTPException(status_code=404, detail="No reserved ticket found to cancel.")
+
+        # Update the ticket to "available" status
+        result = await db.tickets.update_one(
+            {"_id": ObjectId(ticket_id)},
+            {"$set": {"status": "available"}}
+        )
+
+        if result.modified_count == 1:
+            return {
+                "id": str(ticket["_id"]),
+                "concert_id": ticket["concert_id"],
+                "status": "available"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="The ticket could not be canceled.")
     except Exception as e:
-        print(f"Fallo en el servidor: {e}")  # TODO: Guardar en el log
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        print(f"Server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
