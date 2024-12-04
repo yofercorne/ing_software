@@ -36,7 +36,7 @@ class TicketCreate(BaseModel):
     concert_id: str = Field(..., description="El ID del concierto asociado.")
     status: str = Field(
         ...,
-        regex="^(available|reserved|purchased)$",
+        pattern="^(available|reserved|purchased)$",  # Cambiado `regex` por `pattern`
         description="Estado del ticket: 'available', 'reserved' o 'purchased'."
     )
 
