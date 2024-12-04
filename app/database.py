@@ -1,8 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure
 
-client = None
-database = None
+client: AsyncIOMotorClient | None = None
+database: AsyncIOMotorClient | None = None
 
 
 async def connect_db(uri: str = "mongodb://localhost:27017", db_name: str = "concert_tickets"):
@@ -16,17 +16,19 @@ async def connect_db(uri: str = "mongodb://localhost:27017", db_name: str = "con
     global client, database
     try:
         if client is None:  # Evita conexiones duplicadas
-            client = AsyncIOMotorClient(uri)
+            client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)  # Agregar timeout para evitar bloqueos
             # Verifica la conexión antes de asignar la base de datos
             await client.admin.command("ping")
             database = client[db_name]
             print(f"Conexión a MongoDB establecida con la base de datos '{db_name}'.")
+        else:
+            print("Ya existe una conexión activa con MongoDB.")
     except ConnectionFailure as e:
         print(f"Error de conexión a MongoDB: {e}")
-        raise e
+        raise ConnectionError("No se pudo conectar a MongoDB. Verifica la URI y que el servidor esté activo.") from e
     except Exception as e:
         print(f"Hubo un error inesperado al conectar con MongoDB: {e}")
-        raise e
+        raise RuntimeError("Error desconocido al intentar conectar con MongoDB.") from e
 
 
 def get_db():
@@ -50,8 +52,15 @@ async def close_db():
     """
     Cierra la conexión con MongoDB.
     """
-    global client
-    if client:
-        client.close()
-        print("Conexión con MongoDB cerrada.")
-        client = None
+    global client, database
+    try:
+        if client:
+            client.close()
+            print("Conexión con MongoDB cerrada.")
+            client = None
+            database = None
+        else:
+            print("No hay una conexión activa para cerrar.")
+    except Exception as e:
+        print(f"Hubo un error al cerrar la conexión con MongoDB: {e}")
+        raise RuntimeError("Error al intentar cerrar la conexión con MongoDB.") from e

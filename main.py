@@ -6,8 +6,7 @@ from app.routes import router
 
 app = FastAPI()
 
-# Conectar a la base de datos al iniciar la aplicación
-connect_db()
+
 
 # Registrar las rutas
 app.include_router(router)
